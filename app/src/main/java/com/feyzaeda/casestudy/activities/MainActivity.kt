@@ -1,6 +1,9 @@
 package com.feyzaeda.casestudy.activities
 
+import android.content.Context
 import android.os.Bundle
+import android.util.AttributeSet
+import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
@@ -36,10 +39,14 @@ class MainActivity : AppCompatActivity() {
 
         binding.rcvPeople.adapter = adapter
 
+        scrollController()
+        listController()
+    }
+
+    private fun scrollController(){
         binding.rcvPeople.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
-
                 if (peopleListViewModel.uiState.value.endOfThePage) {
                     return
                 }
@@ -55,7 +62,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
 
+    private fun listController(){
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 peopleListViewModel.uiState.onEach { state ->
@@ -77,10 +86,11 @@ class MainActivity : AppCompatActivity() {
                         peopleListViewModel.onEvent(Event.SHOW_ERROR_MSG)
                     }
                 }.collect()
+
+                binding.swpRefreshPeople.setOnRefreshListener {
+                    peopleListViewModel.onEvent(Event.SWIPE_REFRESH)
+                }
             }
-        }
-        binding.swpRefreshPeople.setOnRefreshListener {
-            peopleListViewModel.onEvent(Event.SWIPE_REFRESH)
         }
     }
 }

@@ -67,7 +67,8 @@ class PeopleViewModel @Inject constructor(private val personRepository: PersonRe
         }
 
         fetchPeopleJob = viewModelScope.launch {
-            when (val result = personRepository.fetchPeople(nextPage)) {
+            val result = personRepository.fetchPeople(nextPage)
+            when (result) {
                 is Results.Loading -> {
                     _uiState.update {
                         it.copy(isStateFetching = true)
