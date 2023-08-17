@@ -10,6 +10,7 @@ import com.feyzaeda.casestudy.util.Constants
 import com.feyzaeda.casestudy.util.Event
 import com.feyzaeda.casestudy.util.Results
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,75 +21,78 @@ import javax.inject.Inject
 
 
 @HiltViewModel
-class PeopleViewModel @Inject constructor(private val personRepository: PersonRepository) : ViewModel() {
+class PeopleViewModel @Inject constructor(private val personRepository: PersonRepository, @ApplicationContext context: Context) : ViewModel() {
 
     private var _uiState = MutableStateFlow(UIState())
     val uiState = _uiState.asStateFlow()
 
     private var nextPage: String? = null
     private var fetchPeopleJob: Job? = null
+    private var tryAgainTxt = StringBuilder().append(context.getString(R.string.try_again), Constants.Second.TRY_SECOND)
 
-    fun onEvent(event: Event, context: Context) {
+    init {
+        fetchPeople()
+    }
+    fun onEvent(event: Event) {
         when (event) {
             Event.SHOW_ERROR_MSG -> {
                 _uiState.update {
                     it.copy(error = null)
                 }
             }
-            Event.END_OF_THE_PAGE -> fetchPeople(context = context)
-            Event.SWIPE_REFRESH -> fetchPeople(true, context)
+            Event.END_OF_THE_PAGE -> fetchPeople()
+            Event.SWIPE_REFRESH -> fetchPeople(true)
             Event.SHOW_END_OF_THE_PAGE_MSG -> _uiState.update {
-                it.copy(willDisplayReachedEndOfThePeopleMessage = false)
+                it.copy(msgEndOfThePage = false)
             }
         }
     }
 
-    fun fetchPeople(isRefreshing: Boolean = false, context : Context) {
+    private fun fetchPeople(isRefreshing: Boolean = false) {
         if (isRefreshing) {
             nextPage = null
             _uiState.update {
-                it.copy(people = emptyList(), reachedEndOfThePeople = false, noPeople = false)
+                it.copy(peopleList = emptyList(), endOfThePage = false, emptyPeople = false)
             }
         }
 
-        if (_uiState.value.reachedEndOfThePeople) {
+        if (_uiState.value.endOfThePage) {
             return
         }
 
         cancelFetchPeopleJob()
 
         _uiState.update {
-            it.copy(isFetching = true, isRefreshing = isRefreshing)
+            it.copy(isStateFetching = true, isStateRefreshing = isRefreshing)
         }
-        val tryAgain = context.getString(R.string.try_again)
-        val formatTryAgain = String.format(tryAgain, Constants.Second.TRY_SECOND)
+
         fetchPeopleJob = viewModelScope.launch {
             when (val result = personRepository.fetchPeople(nextPage)) {
                 is Results.Loading -> {
                     _uiState.update {
-                        it.copy(isFetching = true)
+                        it.copy(isStateFetching = true)
                     }
                 }
 
                 is Results.Error -> {
                     _uiState.update {
                         it.copy(
-                            isFetching = false,
-                            isRefreshing = false,
-                            error = result.error + formatTryAgain
+                            isStateFetching = false,
+                            isStateRefreshing = false,
+                            error = result.error + tryAgainTxt
                         )
                     }
 
                     delay(Constants.Second.TRY_SECOND.toLong())
-                    fetchPeople(isRefreshing, context)
+                    fetchPeople(isRefreshing)
                 }
 
                 is Results.Success -> {
-                    val people = _uiState.value.people.toMutableList()
+                    val people = _uiState.value.peopleList.toMutableList()
                     val peopleSizeOld = people.size
 
                     val currentPeopleIds =
-                        _uiState.value.people.mapTo(HashSet(_uiState.value.people.size)) { it.id }
+                        _uiState.value.peopleList.mapTo(HashSet(_uiState.value.peopleList.size)) { it.id }
 
                     result.data.people.forEach { person ->
                         if (!currentPeopleIds.contains(person.id)) {
@@ -103,12 +107,12 @@ class PeopleViewModel @Inject constructor(private val personRepository: PersonRe
 
                     _uiState.update {
                         it.copy(
-                            isFetching = false,
-                            isRefreshing = false,
-                            people = people,
-                            noPeople = people.isEmpty(),
-                            reachedEndOfThePeople = reachedEndOfThePeople,
-                            willDisplayReachedEndOfThePeopleMessage = reachedEndOfThePeople,
+                            isStateFetching = false,
+                            isStateRefreshing = false,
+                            peopleList = people,
+                            emptyPeople = people.isEmpty(),
+                            endOfThePage = reachedEndOfThePeople,
+                            msgEndOfThePage = reachedEndOfThePeople,
                         )
                     }
                     nextPage = result.data.next

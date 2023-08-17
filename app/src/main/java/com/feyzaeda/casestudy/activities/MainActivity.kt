@@ -36,13 +36,11 @@ class MainActivity : AppCompatActivity() {
 
         binding.rcvPeople.adapter = adapter
 
-        peopleListViewModel.fetchPeople(context = applicationContext)
-
         binding.rcvPeople.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
 
-                if (peopleListViewModel.uiState.value.reachedEndOfThePeople) {
+                if (peopleListViewModel.uiState.value.endOfThePage) {
                     return
                 }
 
@@ -51,9 +49,9 @@ class MainActivity : AppCompatActivity() {
                 val lastVisibleItemPosition = layoutManager?.findLastVisibleItemPosition()
 
                 if (lastVisibleItemPosition != null && lastVisibleItemPosition != -1
-                    && lastVisibleItemPosition >= peopleListViewModel.uiState.value.people.size - 3
+                    && lastVisibleItemPosition >= peopleListViewModel.uiState.value.peopleList.size - 3
                 ) {
-                    peopleListViewModel.onEvent(Event.END_OF_THE_PAGE, applicationContext)
+                    peopleListViewModel.onEvent(Event.END_OF_THE_PAGE)
                 }
             }
         })
@@ -61,29 +59,28 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 peopleListViewModel.uiState.onEach { state ->
-                    if (state.reachedEndOfThePeople && state.willDisplayReachedEndOfThePeopleMessage) {
+                    if (state.endOfThePage && state.msgEndOfThePage) {
                         getString(R.string.displayed_all_data).toast(applicationContext)
                         peopleListViewModel.onEvent(
-                            Event.SHOW_END_OF_THE_PAGE_MSG,
-                            applicationContext
+                            Event.SHOW_END_OF_THE_PAGE_MSG
                         )
                     }
 
-                    adapter.submitList(state.people)
+                    adapter.submitList(state.peopleList)
 
-                    binding.swpRefreshPeople.isRefreshing = state.isRefreshing
-                    binding.loadingIndicator.isVisible = state.isFetching && !state.isRefreshing
-                    binding.txtNoPeople.isVisible = state.noPeople
+                    binding.swpRefreshPeople.isRefreshing = state.isStateRefreshing
+                    binding.loadingIndicator.isVisible = state.isStateFetching && !state.isStateRefreshing
+                    binding.txtNoPeople.isVisible = state.emptyPeople
 
                     state.error?.let { errorMessage ->
                         errorMessage.toast(applicationContext)
-                        peopleListViewModel.onEvent(Event.SHOW_ERROR_MSG, applicationContext)
+                        peopleListViewModel.onEvent(Event.SHOW_ERROR_MSG)
                     }
                 }.collect()
             }
         }
         binding.swpRefreshPeople.setOnRefreshListener {
-            peopleListViewModel.onEvent(Event.SWIPE_REFRESH, applicationContext)
+            peopleListViewModel.onEvent(Event.SWIPE_REFRESH)
         }
     }
 }
